@@ -52,21 +52,34 @@ class AdamW(Optimizer):
 
                 # State should be stored in this dictionary
                 state = self.state[p]
-                print(state)
 
                 # Access hyperparameters from the `group` dictionary
                 alpha = group["lr"]
 
-                raise NotImplementedError
+                # Initialization
+                if len(state) == 0:
+                    state['mt'] = torch.zeros_like(grad, dtype=grad.dtype)
+                    state['vt'] = torch.zeros_like(grad, dtype=grad.dtype)
+                    state['step'] = 0
+                state['step'] += 1
                 # Update first and second moments of the gradients
+                state['mt'] = group["betas"][0]*state['mt']+(1-group["betas"][0])*grad
+                state['vt'] = group["betas"][1]*state['vt']+(1-group["betas"][1])*torch.pow(grad, 2)
 
                 # Bias correction
                 # Please note that we are using the "efficient version" given in
                 # https://arxiv.org/abs/1412.6980
+                _mt = state['mt']/(1-pow(group["betas"][0], state['step']))
+                _vt = state['vt']/(1-pow(group["betas"][1], state['step']))
 
                 # Update parameters
+                updated_data = p.data - alpha*_mt/(torch.sqrt(_vt)+group["eps"])
 
                 # Add weight decay after the main gradient-based updates.
                 # Please note that the learning rate should be incorporated into this update.
+                updated_data = updated_data - alpha*group["weight_decay"]*p.data
+                
+                p.data = updated_data
 
+                
         return loss
