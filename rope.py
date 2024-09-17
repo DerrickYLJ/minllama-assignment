@@ -38,27 +38,24 @@ def apply_rotary_emb(
     bs, seqlen, n_local_heads, d = query.shape
     device = query.device
 
-    # Split query and key into real and imaginary parts
     query_real, query_imag = query.float().reshape(query.shape[:-1] + (-1, 2)).unbind(-1)
     key_real, key_imag = key.float().reshape(key.shape[:-1] + (-1, 2)).unbind(-1)
 
-    # Step 1: Calculate the rotary positional encodings
-    half_d = d // 2  # Adjust for half the dimension
+    half_d = d // 2  
     freqs = torch.arange(0, half_d, device=device).float()
     freqs = theta ** (-freqs / half_d)
     
     positions = torch.arange(seqlen, device=device).float()
+    # combinations of embed freqs + pos
     angles = torch.einsum('n,d->nd', positions, freqs)
 
-    # Compute the cosine and sine values
     cos_vals = torch.cos(angles)
     sin_vals = torch.sin(angles)
 
-    # Step 2: Reshape cos_vals and sin_vals using the helper function
-    cos_vals = reshape_for_broadcast(cos_vals, query_real)  # Adjust shape to match real/imag parts
-    sin_vals = reshape_for_broadcast(sin_vals, query_real)  # Adjust shape to match real/imag parts
+    cos_vals = reshape_for_broadcast(cos_vals, query_real)  
+    sin_vals = reshape_for_broadcast(sin_vals, query_real) 
 
-    # Apply RoPE: Combine cos and sin with real and imaginary parts
+    # rope by parts addition
     query_out = query_real * cos_vals - query_imag * sin_vals
     query_out_imag = query_real * sin_vals + query_imag * cos_vals
     query_out = interleave_tensors(query_out, query_out_imag)
@@ -67,5 +64,4 @@ def apply_rotary_emb(
     key_out_imag = key_real * sin_vals + key_imag * cos_vals
     key_out = interleave_tensors(key_out, key_out_imag)
 
-    # Return the modified query and key tensors with rotary embeddings
     return query_out, key_out
